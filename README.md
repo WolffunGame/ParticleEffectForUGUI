@@ -210,7 +210,7 @@ and z-position.
 If you want to mask particles, set a stencil-supported shader (such as `UI/UIAdditive`) to the material for
 ParticleSystem.
 If you use some custom shaders, see
-the [How to Make a Custom Shader to Support Mask/RectMask2D Component](#how-to-make-a-custom-shader-to-support-maskrectmask2d-component)
+the [How to Make a Custom Shader to Support Mask/RectMask2D Component](#how-to-make-a-custom-shader-to-support-mask-and-rectmask2d-component)
 section.
 
 ![](https://user-images.githubusercontent.com/12690315/95017591-3b512700-0695-11eb-864e-04166ea1809a.png)
