@@ -41,9 +41,8 @@ namespace Coffee.UIExtensions
         [SerializeField]
         private float m_MaxSpeed = 1;
 
-        [Range(0.1f, 10f)]
         [SerializeField]
-        private float m_Acceleration = 1f;
+        private AnimationCurve m_SpeedCurve = AnimationCurve.Linear(0, 0, 1, 1);
 
         [SerializeField]
         private Movement m_Movement;
@@ -56,10 +55,10 @@ namespace Coffee.UIExtensions
 
         private List<UIParticle> _uiParticles = new List<UIParticle>();
 
-        public float acceleration
+        public AnimationCurve speedCurve
         {
-            get => m_Acceleration;
-            set => m_Acceleration = Mathf.Clamp(value, 0.1f, 10f);
+            get => m_SpeedCurve;
+            set => m_SpeedCurve = value;
         }
 
         public float destinationRadius
@@ -245,7 +244,7 @@ namespace Coffee.UIExtensions
         private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time)
         {
             float normalizedTime = time / duration;
-            float currentSpeed = m_MaxSpeed * normalizedTime * m_Acceleration;
+            float currentSpeed = m_MaxSpeed * m_SpeedCurve.Evaluate(normalizedTime);
 
             switch (m_UpdateMode)
             {
