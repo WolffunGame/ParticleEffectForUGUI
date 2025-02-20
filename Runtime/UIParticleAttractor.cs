@@ -41,6 +41,10 @@ namespace Coffee.UIExtensions
         [SerializeField]
         private float m_MaxSpeed = 1;
 
+        [Range(0.1f, 10f)]
+        [SerializeField]
+        private float m_Acceleration = 1f;
+
         [SerializeField]
         private Movement m_Movement;
 
@@ -51,6 +55,12 @@ namespace Coffee.UIExtensions
         private UnityEvent m_OnAttracted;
 
         private List<UIParticle> _uiParticles = new List<UIParticle>();
+
+        public float acceleration
+        {
+            get => m_Acceleration;
+            set => m_Acceleration = Mathf.Clamp(value, 0.1f, 10f);
+        }
 
         public float destinationRadius
         {
@@ -88,10 +98,6 @@ namespace Coffee.UIExtensions
             set => m_OnAttracted = value;
         }
 
-        /// <summary>
-        /// The target ParticleSystems to attract. Use <see cref="AddParticleSystem"/> and
-        /// <see cref="RemoveParticleSystem"/> to modify the list.
-        /// </summary>
         public IReadOnlyList<ParticleSystem> particleSystems => m_ParticleSystems;
 
         public void AddParticleSystem(ParticleSystem ps)
@@ -102,7 +108,7 @@ namespace Coffee.UIExtensions
             }
 
             var i = m_ParticleSystems.IndexOf(ps);
-            if (0 <= i) return; // Already added: skip
+            if (0 <= i) return;
 
             m_ParticleSystems.Add(ps);
             _uiParticles.Clear();
@@ -116,7 +122,7 @@ namespace Coffee.UIExtensions
             }
 
             var i = m_ParticleSystems.IndexOf(ps);
-            if (i < 0) return; // Not found. skip
+            if (i < 0) return;
 
             m_ParticleSystems.RemoveAt(i);
             _uiParticles.Clear();
@@ -145,17 +151,14 @@ namespace Coffee.UIExtensions
 
         internal void Attract()
         {
-            // Collect UIParticle if needed (same size as m_ParticleSystems)
             CollectUIParticlesIfNeeded();
 
             for (var particleIndex = 0; particleIndex < m_ParticleSystems.Count; particleIndex++)
             {
                 var particleSystem = m_ParticleSystems[particleIndex];
 
-                // Skip: The ParticleSystem is not active
                 if (particleSystem == null || !particleSystem.gameObject.activeInHierarchy) continue;
 
-                // Skip: No active particles
                 var count = particleSystem.particleCount;
                 if (count == 0) continue;
 
@@ -166,7 +169,6 @@ namespace Coffee.UIExtensions
                 var dstPos = GetDestinationPosition(uiParticle, particleSystem);
                 for (var i = 0; i < count; i++)
                 {
-                    // Attracted
                     var p = particles[i];
                     if (0f < p.remainingLifetime && Vector3.Distance(p.position, dstPos) < m_DestinationRadius)
                     {
@@ -184,19 +186,15 @@ namespace Coffee.UIExtensions
                                 Debug.LogException(e);
                             }
                         }
-
                         continue;
                     }
 
-                    // Calc attracting time
                     var delayTime = p.startLifetime * m_DelayRate;
                     var duration = p.startLifetime - delayTime;
                     var time = Mathf.Max(0, p.startLifetime - p.remainingLifetime - delayTime);
 
-                    // Delay
                     if (time <= 0) continue;
 
-                    // Attract
                     p.position = GetAttractedPosition(p.position, dstPos, duration, time);
                     p.velocity *= 0.5f;
                     particles[i] = p;
@@ -225,7 +223,6 @@ namespace Coffee.UIExtensions
                 var scale3d = uiParticle.scale3DForCalc;
                 dstPos = dstPos.GetScaled(inverseScale, scale3d.Inverse());
 
-                // Relative mode
                 if (uiParticle.positionMode == UIParticle.PositionMode.Relative)
                 {
                     var diff = uiParticle.transform.position - psPos;
@@ -247,44 +244,44 @@ namespace Coffee.UIExtensions
 
         private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time)
         {
-            var speed = m_MaxSpeed;
+            float normalizedTime = time / duration;
+            float currentSpeed = m_MaxSpeed * normalizedTime * m_Acceleration;
+
             switch (m_UpdateMode)
             {
                 case UpdateMode.Normal:
-                    speed *= 60 * Time.deltaTime;
+                    currentSpeed *= 60 * Time.deltaTime;
                     break;
                 case UpdateMode.UnscaledTime:
-                    speed *= 60 * Time.unscaledDeltaTime;
+                    currentSpeed *= 60 * Time.unscaledDeltaTime;
                     break;
             }
 
             switch (m_Movement)
             {
                 case Movement.Linear:
-                    speed /= duration;
+                    currentSpeed /= duration;
                     break;
                 case Movement.Smooth:
-                    target = Vector3.Lerp(current, target, time / duration);
+                    target = Vector3.Lerp(current, target, normalizedTime);
                     break;
                 case Movement.Sphere:
-                    target = Vector3.Slerp(current, target, time / duration);
+                    target = Vector3.Slerp(current, target, normalizedTime);
                     break;
             }
 
-            return Vector3.MoveTowards(current, target, speed);
+            return Vector3.MoveTowards(current, target, currentSpeed);
         }
 
         private void CollectUIParticlesIfNeeded()
         {
             if (m_ParticleSystems.Count == 0 || _uiParticles.Count != 0) return;
 
-            // Expand capacity
             if (_uiParticles.Capacity < m_ParticleSystems.Capacity)
             {
                 _uiParticles.Capacity = m_ParticleSystems.Capacity;
             }
 
-            // Find UIParticle that controls the ParticleSystem
             for (var i = 0; i < m_ParticleSystems.Count; i++)
             {
                 var ps = m_ParticleSystems[i];
@@ -317,7 +314,6 @@ namespace Coffee.UIExtensions
 
         private void UpgradeIfNeeded()
         {
-            // Multiple ParticleSystems support: from 'm_ParticleSystem' to 'm_ParticleSystems'
             if (m_ParticleSystem != null)
             {
                 if (!m_ParticleSystems.Contains(m_ParticleSystem))
