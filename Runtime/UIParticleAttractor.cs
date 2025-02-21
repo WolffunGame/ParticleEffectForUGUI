@@ -13,7 +13,8 @@ namespace Coffee.UIExtensions
         {
             Linear,
             Smooth,
-            Sphere
+            Sphere,
+            VelocityCurve
         }
 
         public enum UpdateMode
@@ -42,7 +43,10 @@ namespace Coffee.UIExtensions
         private float m_MaxSpeed = 1;
 
         [SerializeField]
-        private AnimationCurve m_SpeedCurve = AnimationCurve.Linear(0, 0, 1, 1);
+        private float m_Acceleration = 1f;
+
+        [SerializeField]
+        private AnimationCurve m_AccelerationCurve = AnimationCurve.Linear(0, 0, 1, 1);
 
         [SerializeField]
         private Movement m_Movement;
@@ -54,12 +58,6 @@ namespace Coffee.UIExtensions
         private UnityEvent m_OnAttracted;
 
         private List<UIParticle> _uiParticles = new List<UIParticle>();
-
-        public AnimationCurve speedCurve
-        {
-            get => m_SpeedCurve;
-            set => m_SpeedCurve = value;
-        }
 
         public float destinationRadius
         {
@@ -77,6 +75,18 @@ namespace Coffee.UIExtensions
         {
             get => m_MaxSpeed;
             set => m_MaxSpeed = value;
+        }
+
+        public float acceleration
+        {
+            get => m_Acceleration;
+            set => m_Acceleration = value;
+        }
+
+        public AnimationCurve accelerationCurve
+        {
+            get => m_AccelerationCurve;
+            set => m_AccelerationCurve = value;
         }
 
         public Movement movement
@@ -166,6 +176,7 @@ namespace Coffee.UIExtensions
 
                 var uiParticle = _uiParticles[particleIndex];
                 var dstPos = GetDestinationPosition(uiParticle, particleSystem);
+                
                 for (var i = 0; i < count; i++)
                 {
                     var p = particles[i];
@@ -194,8 +205,21 @@ namespace Coffee.UIExtensions
 
                     if (time <= 0) continue;
 
-                    p.position = GetAttractedPosition(p.position, dstPos, duration, time);
-                    p.velocity *= 0.5f;
+                    if (m_Movement == Movement.VelocityCurve)
+                    {
+                        float normalizedTime = time / duration;
+                        float acceleration = m_AccelerationCurve.Evaluate(normalizedTime) * m_Acceleration;
+                        
+                        Vector3 direction = (dstPos - p.position).normalized;
+                        p.velocity += direction * acceleration;
+                        p.velocity = Vector3.ClampMagnitude(p.velocity, m_MaxSpeed);
+                    }
+                    else 
+                    {
+                        p.position = GetAttractedPosition(p.position, dstPos, duration, time);
+                        p.velocity *= 0.5f;
+                    }
+                    
                     particles[i] = p;
                 }
 
@@ -244,7 +268,7 @@ namespace Coffee.UIExtensions
         private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time)
         {
             float normalizedTime = time / duration;
-            float currentSpeed = m_MaxSpeed * m_SpeedCurve.Evaluate(normalizedTime);
+            float currentSpeed = m_MaxSpeed;
 
             switch (m_UpdateMode)
             {
