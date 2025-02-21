@@ -251,7 +251,7 @@ namespace Coffee.UIExtensions
                     target = Vector3.Slerp(current, target, normalizedTime);
                     break;
             }
-
+            Debug.DrawLine(current, target, Color.red, deltaTime);
             return Vector3.MoveTowards(current, target, currentSpeed);
         }
 
