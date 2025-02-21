@@ -28,7 +28,7 @@ namespace Coffee.UIExtensions
 
         [SerializeField] private AttractorSettings settings = new AttractorSettings();
         [SerializeField] private List<ParticleSystem> particleSystems = new List<ParticleSystem>();
-        [SerializeField] private UnityEvent onAttracted;
+        public UnityEvent onAttracted;
         
         private List<UIParticle> uiParticles = new List<UIParticle>();
         private Transform cachedTransform;
