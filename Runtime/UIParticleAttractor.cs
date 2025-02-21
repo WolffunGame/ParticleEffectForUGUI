@@ -9,7 +9,6 @@ namespace Coffee.UIExtensions
     [ExecuteAlways]
     public class UIParticleAttractor : MonoBehaviour, ISerializationCallbackReceiver
     {
-        private const float VELOCITY_DAMPING = 0.5f;
         private const float TIME_MULTIPLIER = 60f;
 
         public enum Movement
@@ -185,7 +184,6 @@ namespace Coffee.UIExtensions
                     if (time <= 0) continue;
 
                     p.position = GetAttractedPosition(p.position, dstPos, duration, time, deltaTime, p.velocity);
-                    p.velocity *= VELOCITY_DAMPING;
                     ParticlePool[i] = p;
                 }
 
