@@ -40,10 +40,6 @@ namespace Coffee.UIExtensions
         [SerializeField]
         private float m_DelayRate;
 
-        [Range(0.001f, 100f)]
-        [SerializeField]
-        private float m_MaxSpeed = 1;
-
         [SerializeField]
         private AnimationCurve m_SpeedCurve = AnimationCurve.Linear(0, 0, 1, 1);
 
@@ -82,12 +78,6 @@ namespace Coffee.UIExtensions
         {
             get => m_DelayRate;
             set => m_DelayRate = value;
-        }
-
-        public float maxSpeed
-        {
-            get => m_MaxSpeed;
-            set => m_MaxSpeed = value;
         }
 
         public Movement movement
@@ -194,7 +184,7 @@ namespace Coffee.UIExtensions
 
                     if (time <= 0) continue;
 
-                    p.position = GetAttractedPosition(p.position, dstPos, duration, time, deltaTime);
+                    p.position = GetAttractedPosition(p.position, dstPos, duration, time, deltaTime, p.velocity);
                     p.velocity *= VELOCITY_DAMPING;
                     ParticlePool[i] = p;
                 }
@@ -243,10 +233,11 @@ namespace Coffee.UIExtensions
             return dstPos;
         }
 
-        private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time, float deltaTime)
+        private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time, float deltaTime, Vector3 velocity)
         {
             float normalizedTime = time / duration;
-            float currentSpeed = m_MaxSpeed * m_SpeedCurve.Evaluate(normalizedTime);
+            float initialSpeed = velocity.magnitude;
+            float currentSpeed = initialSpeed * m_SpeedCurve.Evaluate(normalizedTime);
 
             currentSpeed *= TIME_MULTIPLIER * deltaTime;
 
