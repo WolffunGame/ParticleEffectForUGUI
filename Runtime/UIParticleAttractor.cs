@@ -9,6 +9,9 @@ namespace Coffee.UIExtensions
     [ExecuteAlways]
     public class UIParticleAttractor : MonoBehaviour, ISerializationCallbackReceiver
     {
+        private const float VELOCITY_DAMPING = 0.5f;
+        private const float TIME_MULTIPLIER = 60f;
+
         public enum Movement
         {
             Linear,
@@ -27,7 +30,7 @@ namespace Coffee.UIExtensions
         private ParticleSystem m_ParticleSystem;
 
         [SerializeField]
-        private List<ParticleSystem> m_ParticleSystems = new List<ParticleSystem>();
+        private ParticleSystem[] m_ParticleSystems = Array.Empty<ParticleSystem>();
 
         [Range(0.1f, 10f)]
         [SerializeField]
@@ -53,7 +56,15 @@ namespace Coffee.UIExtensions
         [SerializeField]
         private UnityEvent m_OnAttracted;
 
-        private List<UIParticle> _uiParticles = new List<UIParticle>();
+        // Cache components
+        private Transform _transform;
+        private readonly List<UIParticle> _uiParticles = new List<UIParticle>();
+        private static readonly ParticleSystem.Particle[] ParticlePool = new ParticleSystem.Particle[1000];
+        
+        // Cache calculations
+        private readonly Vector3 _tempVector = new Vector3();
+        private Vector3 _cachedInverseScale;
+        private Vector3 _cachedScale3D;
 
         public AnimationCurve speedCurve
         {
@@ -101,34 +112,32 @@ namespace Coffee.UIExtensions
 
         public void AddParticleSystem(ParticleSystem ps)
         {
-            if (m_ParticleSystems == null)
+            if (ps == null) return;
+            
+            var list = new List<ParticleSystem>(m_ParticleSystems);
+            if (!list.Contains(ps))
             {
-                m_ParticleSystems = new List<ParticleSystem>();
+                list.Add(ps);
+                m_ParticleSystems = list.ToArray();
+                _uiParticles.Clear();
             }
-
-            var i = m_ParticleSystems.IndexOf(ps);
-            if (0 <= i) return;
-
-            m_ParticleSystems.Add(ps);
-            _uiParticles.Clear();
         }
 
         public void RemoveParticleSystem(ParticleSystem ps)
         {
-            if (m_ParticleSystems == null)
+            if (ps == null) return;
+            
+            var list = new List<ParticleSystem>(m_ParticleSystems);
+            if (list.Remove(ps))
             {
-                return;
+                m_ParticleSystems = list.ToArray();
+                _uiParticles.Clear();
             }
-
-            var i = m_ParticleSystems.IndexOf(ps);
-            if (i < 0) return;
-
-            m_ParticleSystems.RemoveAt(i);
-            _uiParticles.Clear();
         }
 
         private void Awake()
         {
+            _transform = transform;
             UpgradeIfNeeded();
         }
 
@@ -144,7 +153,7 @@ namespace Coffee.UIExtensions
 
         private void OnDestroy()
         {
-            _uiParticles = null;
+            _uiParticles.Clear();
             m_ParticleSystems = null;
         }
 
@@ -152,39 +161,30 @@ namespace Coffee.UIExtensions
         {
             CollectUIParticlesIfNeeded();
 
-            for (var particleIndex = 0; particleIndex < m_ParticleSystems.Count; particleIndex++)
+            float deltaTime = (m_UpdateMode == UpdateMode.Normal) ? Time.deltaTime : Time.unscaledDeltaTime;
+            
+            for (var particleIndex = 0; particleIndex < m_ParticleSystems.Length; particleIndex++)
             {
                 var particleSystem = m_ParticleSystems[particleIndex];
-
                 if (particleSystem == null || !particleSystem.gameObject.activeInHierarchy) continue;
 
                 var count = particleSystem.particleCount;
                 if (count == 0) continue;
 
-                var particles = ParticleSystemExtensions.GetParticleArray(count);
-                particleSystem.GetParticles(particles, count);
+                particleSystem.GetParticles(ParticlePool, count);
 
                 var uiParticle = _uiParticles[particleIndex];
                 var dstPos = GetDestinationPosition(uiParticle, particleSystem);
+                
                 for (var i = 0; i < count; i++)
                 {
-                    var p = particles[i];
+                    var p = ParticlePool[i];
                     if (0f < p.remainingLifetime && Vector3.Distance(p.position, dstPos) < m_DestinationRadius)
                     {
                         p.remainingLifetime = 0f;
-                        particles[i] = p;
+                        ParticlePool[i] = p;
 
-                        if (m_OnAttracted != null)
-                        {
-                            try
-                            {
-                                m_OnAttracted.Invoke();
-                            }
-                            catch (Exception e)
-                            {
-                                Debug.LogException(e);
-                            }
-                        }
+                        m_OnAttracted?.Invoke();
                         continue;
                     }
 
@@ -194,12 +194,12 @@ namespace Coffee.UIExtensions
 
                     if (time <= 0) continue;
 
-                    p.position = GetAttractedPosition(p.position, dstPos, duration, time);
-                    p.velocity *= 0.5f;
-                    particles[i] = p;
+                    p.position = GetAttractedPosition(p.position, dstPos, duration, time, deltaTime);
+                    p.velocity *= VELOCITY_DAMPING;
+                    ParticlePool[i] = p;
                 }
 
-                particleSystem.SetParticles(particles, count);
+                particleSystem.SetParticles(ParticlePool, count);
             }
         }
 
@@ -207,8 +207,9 @@ namespace Coffee.UIExtensions
         {
             var isUI = uiParticle && uiParticle.enabled;
             var psPos = particleSystem.transform.position;
-            var attractorPos = transform.position;
-            var dstPos = attractorPos;
+            var attractorPos = _transform.position;
+            _tempVector.Set(attractorPos.x, attractorPos.y, attractorPos.z);
+            var dstPos = _tempVector;
             var isLocalSpace = particleSystem.IsLocalSpace();
 
             if (isLocalSpace)
@@ -218,22 +219,23 @@ namespace Coffee.UIExtensions
 
             if (isUI)
             {
-                var inverseScale = uiParticle.parentScale.Inverse();
-                var scale3d = uiParticle.scale3DForCalc;
-                dstPos = dstPos.GetScaled(inverseScale, scale3d.Inverse());
+                _cachedInverseScale = uiParticle.parentScale.Inverse();
+                _cachedScale3D = uiParticle.scale3DForCalc;
+                
+                dstPos = dstPos.GetScaled(_cachedInverseScale, _cachedScale3D.Inverse());
 
                 if (uiParticle.positionMode == UIParticle.PositionMode.Relative)
                 {
                     var diff = uiParticle.transform.position - psPos;
-                    diff.Scale(scale3d - inverseScale);
-                    diff.Scale(scale3d.Inverse());
+                    diff.Scale(_cachedScale3D - _cachedInverseScale);
+                    diff.Scale(_cachedScale3D.Inverse());
                     dstPos += diff;
                 }
 
 #if UNITY_EDITOR
                 if (!Application.isPlaying && !isLocalSpace)
                 {
-                    dstPos += psPos - psPos.GetScaled(inverseScale, scale3d.Inverse());
+                    dstPos += psPos - psPos.GetScaled(_cachedInverseScale, _cachedScale3D.Inverse());
                 }
 #endif
             }
@@ -241,20 +243,12 @@ namespace Coffee.UIExtensions
             return dstPos;
         }
 
-        private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time)
+        private Vector3 GetAttractedPosition(Vector3 current, Vector3 target, float duration, float time, float deltaTime)
         {
             float normalizedTime = time / duration;
             float currentSpeed = m_MaxSpeed * m_SpeedCurve.Evaluate(normalizedTime);
 
-            switch (m_UpdateMode)
-            {
-                case UpdateMode.Normal:
-                    currentSpeed *= 60 * Time.deltaTime;
-                    break;
-                case UpdateMode.UnscaledTime:
-                    currentSpeed *= 60 * Time.unscaledDeltaTime;
-                    break;
-            }
+            currentSpeed *= TIME_MULTIPLIER * deltaTime;
 
             switch (m_Movement)
             {
@@ -274,14 +268,11 @@ namespace Coffee.UIExtensions
 
         private void CollectUIParticlesIfNeeded()
         {
-            if (m_ParticleSystems.Count == 0 || _uiParticles.Count != 0) return;
+            if (m_ParticleSystems.Length == 0 || _uiParticles.Count != 0) return;
 
-            if (_uiParticles.Capacity < m_ParticleSystems.Capacity)
-            {
-                _uiParticles.Capacity = m_ParticleSystems.Capacity;
-            }
+            _uiParticles.Capacity = Math.Max(_uiParticles.Capacity, m_ParticleSystems.Length);
 
-            for (var i = 0; i < m_ParticleSystems.Count; i++)
+            for (var i = 0; i < m_ParticleSystems.Length; i++)
             {
                 var ps = m_ParticleSystems[i];
                 if (ps == null)
@@ -291,7 +282,7 @@ namespace Coffee.UIExtensions
                 }
 
                 var uiParticle = ps.GetComponentInParent<UIParticle>(true);
-                _uiParticles.Add(uiParticle.particles.Contains(ps) ? uiParticle : null);
+                _uiParticles.Add(uiParticle != null && uiParticle.particles.Contains(ps) ? uiParticle : null);
             }
         }
 
@@ -315,9 +306,11 @@ namespace Coffee.UIExtensions
         {
             if (m_ParticleSystem != null)
             {
-                if (!m_ParticleSystems.Contains(m_ParticleSystem))
+                var list = new List<ParticleSystem>(m_ParticleSystems);
+                if (!list.Contains(m_ParticleSystem))
                 {
-                    m_ParticleSystems.Add(m_ParticleSystem);
+                    list.Add(m_ParticleSystem);
+                    m_ParticleSystems = list.ToArray();
                 }
 
                 m_ParticleSystem = null;
