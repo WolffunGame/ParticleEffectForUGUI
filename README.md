@@ -158,7 +158,7 @@ _This package requires **Unity 2018.3 or later**._
 
 `UIParticle` controls the ParticleSystems that are attached to its own game objects and child game objects.
 
-![](https://github.com/mob-sakai/ParticleEffectForUGUI/assets/12690315/1cf5753b-33fc-4cef-91c3-413c515a954f)
+![](https://github.com/user-attachments/assets/bc9eb783-afce-4102-ac61-aee9ea8d6f2f)
 
 - **Maskable**: Does this graphic allow maskable.
 - **Scale**: Scale the rendering particles. When the `3D` toggle is enabled, 3D scale (x, y, z) is supported.
@@ -180,6 +180,7 @@ _This package requires **Unity 2018.3 or later**._
   - **UIParticle:** UIParticle.scale will be adjusted.
 - **Use Custom View:** Use this if the particles are not displayed correctly due to min/max particle size.
   - **Custom view size:** Change the bake view size.
+- **Time Scale Multiplier:** Time scale multiplier.
 - **Rendering Order**: The ParticleSystem list to be rendered. You can change the order and the materials.
 
 **NOTE:** Press the `Refresh` button to reconstruct the rendering order based on children ParticleSystem's sorting order
