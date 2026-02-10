@@ -6,29 +6,15 @@ namespace Coffee.UIExtensions
     [CustomEditor(typeof(UIParticleAttractor))]
     public class UIParticleAttractorEditor : Editor
     {
-        SerializedProperty m_ParticleSystem;
+        SerializedProperty m_Settings;
         SerializedProperty m_ParticleSystems;
-        SerializedProperty m_DestinationRadius;
-        SerializedProperty m_DelayRate;
-        SerializedProperty m_MaxSpeed;
-        SerializedProperty m_Acceleration;
-        SerializedProperty m_AccelerationCurve;
-        SerializedProperty m_Movement;
-        SerializedProperty m_UpdateMode;
         SerializedProperty m_OnAttracted;
 
         void OnEnable()
         {
-            m_ParticleSystem = serializedObject.FindProperty("m_ParticleSystem");
-            m_ParticleSystems = serializedObject.FindProperty("m_ParticleSystems");
-            m_DestinationRadius = serializedObject.FindProperty("m_DestinationRadius");
-            m_DelayRate = serializedObject.FindProperty("m_DelayRate");
-            m_MaxSpeed = serializedObject.FindProperty("m_MaxSpeed");
-            m_Acceleration = serializedObject.FindProperty("m_Acceleration");
-            m_AccelerationCurve = serializedObject.FindProperty("m_AccelerationCurve");
-            m_Movement = serializedObject.FindProperty("m_Movement");
-            m_UpdateMode = serializedObject.FindProperty("m_UpdateMode");
-            m_OnAttracted = serializedObject.FindProperty("m_OnAttracted");
+            m_Settings = serializedObject.FindProperty("settings");
+            m_ParticleSystems = serializedObject.FindProperty("particleSystems");
+            m_OnAttracted = serializedObject.FindProperty("onAttracted");
         }
 
         public override void OnInspectorGUI()
@@ -36,19 +22,31 @@ namespace Coffee.UIExtensions
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(m_ParticleSystems);
-            EditorGUILayout.PropertyField(m_DestinationRadius);
-            EditorGUILayout.PropertyField(m_DelayRate);
-            EditorGUILayout.PropertyField(m_MaxSpeed);
-            EditorGUILayout.PropertyField(m_Movement);
 
-            // Chỉ hiện acceleration và curve khi Movement là VelocityCurve
-            if (m_Movement.enumValueIndex == (int)UIParticleAttractor.Movement.VelocityCurve)
+            if (m_Settings != null)
             {
-                EditorGUILayout.PropertyField(m_Acceleration);
-                EditorGUILayout.PropertyField(m_AccelerationCurve);
+                var destinationRadius = m_Settings.FindPropertyRelative("destinationRadius");
+                var delayRate = m_Settings.FindPropertyRelative("delayRate");
+                var maxSpeed = m_Settings.FindPropertyRelative("maxSpeed");
+                var movement = m_Settings.FindPropertyRelative("movement");
+                var acceleration = m_Settings.FindPropertyRelative("acceleration");
+                var accelerationCurve = m_Settings.FindPropertyRelative("accelerationCurve");
+                var updateMode = m_Settings.FindPropertyRelative("updateMode");
+
+                EditorGUILayout.PropertyField(destinationRadius);
+                EditorGUILayout.PropertyField(delayRate);
+                EditorGUILayout.PropertyField(maxSpeed);
+                EditorGUILayout.PropertyField(movement);
+
+                if (movement != null && movement.enumValueIndex == (int)UIParticleAttractor.Movement.VelocityCurve)
+                {
+                    EditorGUILayout.PropertyField(acceleration);
+                    EditorGUILayout.PropertyField(accelerationCurve);
+                }
+
+                EditorGUILayout.PropertyField(updateMode);
             }
 
-            EditorGUILayout.PropertyField(m_UpdateMode);
             EditorGUILayout.PropertyField(m_OnAttracted);
 
             serializedObject.ApplyModifiedProperties();
